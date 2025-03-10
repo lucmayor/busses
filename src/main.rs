@@ -59,7 +59,7 @@ impl ToString for Times {
         let estim_corrected: Duration = estimate - current;
 
         format!(
-            "in {0} ({1} minute(s) scheduled— {2}:{3})",
+            "in {0} ({1} minute(s) scheduled — {2}:{3})",
             match estim_corrected.num_minutes() {
                 0 => format!("{} second(s)", estim_corrected.num_seconds(),),
                 _ => format!("{} minute(s)", estim_corrected.num_minutes(),),
