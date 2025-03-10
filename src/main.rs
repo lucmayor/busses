@@ -1,11 +1,12 @@
 extern crate dotenv;
 
-use chrono::{DateTime, FixedOffset, format::Fixed};
+use chrono::{DateTime, Duration, FixedOffset, Local, format::Fixed};
+use dotenv::dotenv;
 use read_input::prelude::*;
+use relativetime::{NegativeRelativeTime, RelativeTime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, fmt, str::FromStr};
-use dotenv::dotenv;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Status {
@@ -22,10 +23,54 @@ struct Bus {
     times: Vec<Times>,
 }
 
+impl ToString for Bus {
+    fn to_string(&self) -> String {
+        let mut res = self.alias.clone() + ": ";
+        for time in &self.times {
+            res = res + "\n" + &time.to_string();
+        }
+        res
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct Times {
-    scheduled: DateTime<FixedOffset>,
-    estimated: DateTime<FixedOffset>,
+    // scheduled: chrono::DateTime<Local>,
+    // estimated: chrono::DateTime<Local>,
+    scheduled: String,
+    estimated: String,
+}
+
+impl ToString for Times {
+    fn to_string(&self) -> String {
+        let current = Local::now();
+
+        let test_a = match format!("{}-05:00", self.scheduled).parse::<DateTime<Local>>() {
+            Ok(res) => res,
+            Err(e) => panic!("error msg: {}", e),
+        };
+        let test_b = match format!("{}-05:00", self.estimated).parse::<DateTime<Local>>() {
+            Ok(res) => res,
+            Err(e) => panic!("error msg: {}", e),
+        };
+
+        let sched_corrected: Duration = test_a - current;
+        let estim_corrected: Duration = test_b - current;
+
+        let output = match estim_corrected.num_minutes() {
+            0 => format!(
+                "{0} second(s) ({1} minute(s) scheduled)",
+                estim_corrected.num_seconds(),
+                sched_corrected.num_seconds()
+            ),
+            _ => format!(
+                "{0} minute(s) ({1} minute(s) scheduled)",
+                estim_corrected.num_minutes(),
+                sched_corrected.num_minutes()
+            ),
+        };
+        output
+    }
 }
 
 // TODO: change datatype to handle blue busses on busses_wanted
@@ -44,9 +89,9 @@ impl ToString for BusList {
         let mut res = String::new();
 
         for bus in self.busses_wanted.clone() {
-            res = res + &bus.to_string();
+            res = res + &bus.to_string() + ",";
         }
-        
+
         res
     }
 }
@@ -60,20 +105,23 @@ impl std::str::FromStr for StopCollection {
     type Err = LocError;
 
     fn from_str(s: &str) -> Result<Self, LocError> {
+        let mut temp: Vec<BusStop> = Vec::new();
+
         let busses: Vec<BusStop> = match s {
             "university" => {
-                let mut temp: Vec<BusStop> = Vec::new();
-
                 temp.push(BusStop::from_str("stafford_south").unwrap());
                 temp.push(BusStop::from_str("waverly_south").unwrap());
 
                 temp
             }
             "home_uni" => {
-                let mut temp: Vec<BusStop> = Vec::new();
-
                 temp.push(BusStop::from_str("university_one").unwrap());
                 temp.push(BusStop::from_str("university_two").unwrap());
+
+                temp
+            }
+            "home_bus" => {
+                temp.push(BusStop::from_str("university_one").unwrap());
 
                 temp
             }
@@ -172,10 +220,12 @@ async fn main() {
             // THIS IS UNSAFE AS FUCK !!!
             // THIS IS UNSAFE AS FUCK !!!
             // THIS IS UNSAFE AS FUCK !!!
+
             // This will crash your computer in like 30 seconds don't use this !!!
-            _ => loop {
+            // _ => loop {}
+            _ => {
                 tokio::task::spawn_blocking(move || get_results().unwrap());
-            },
+            }
         },
         Err(e) => panic!("Error in first read-in: {:?}", e),
     }
@@ -194,7 +244,7 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
     println!("For collection {:?}", to_search.alias);
 
     for stops in to_search.stops {
-        println!("For stop {:?}", stops.alias);
+        println!("\nFor stop {:?}", stops.alias);
 
         let mut param: HashMap<&str, &str> = HashMap::new();
         let api_key = &std::env::var("api_key").expect("api key of doom");
@@ -202,7 +252,7 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
         param.insert("max-results-per-route", "3"); // seems to max out at 3
 
         let routes = &stops.busses_wanted.to_string();
-        param.insert("routes", routes);
+        param.insert("route", routes);
 
         let url = format!(
             "https://api.winnipegtransit.com/v3/stops/{0}/schedule.json",
@@ -228,9 +278,9 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
         let mut final_list: Vec<Bus> = Vec::new();
 
         for route in routes {
-            let name = match route.get("key") {
-                Some(n) => match n.as_str() {
-                    Some(bus) => bus,
+            let name = match route.get("route").and_then(|k| k.get("key")) {
+                Some(n) => match n.as_i64() {
+                    Some(bus) => &bus.to_string(),
                     None => "n/a",
                 },
                 None => "n/a",
@@ -241,10 +291,10 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
 
                 for stop in stops {
                     if let Some(stop_time) = stop.get("times") {
-                        // there's probably gonna be some timezone bullshit with this
-                        // need to figure out how to set the timezone for item
-                        if let Ok(times) = serde_json::from_value(stop_time.clone()) {
-                            result.push(times);
+                        if let Some(arrival_key) = stop_time.get("arrival") {
+                            if let Ok(times) = serde_json::from_value(arrival_key.clone()) {
+                                result.push(times);
+                            }
                         }
                     }
                 }
@@ -253,6 +303,10 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
                     times: result,
                 })
             }
+        }
+
+        for res_bus in final_list {
+            println!("{}", res_bus.to_string());
         }
     }
 
