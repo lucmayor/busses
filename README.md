@@ -32,8 +32,13 @@ This will also require your own provided `.env`, which requires storage of the W
 ### Dependancies
 
 [chrono](https://crates.io/crates/chrono)
+
 [dotenv](https://crates.io/crates/dotenv)
+
 [read_input](https://crates.io/crates/read_input)
+
 [reqwest](https://crates.io/crates/reqwest)
+
 [serde / serde_json](https://crates.io/crates/serde)
+
 [tokio](https://crates.io/crates/tokio)
