@@ -29,6 +29,26 @@ This will also require your own provided `.env`, which requires storage of the W
 
 ---
 
+### Output
+
+Example output for input `uni`
+
+```
+uni
+For collection "uni"     
+
+For stop "stafford_south"
+No busses found.
+
+For stop "waverly_south"
+78: 
+in 11 minute(s) (11 minute(s) scheduled — 15:34)
+in 38 minute(s) (23 minute(s) scheduled — 15:46)
+in 35 minute(s) (35 minute(s) scheduled — 15:58)
+```
+
+---
+
 ### Dependancies
 
 [chrono](https://crates.io/crates/chrono)
