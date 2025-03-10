@@ -42,3 +42,12 @@ This will also require your own provided `.env`, which requires storage of the W
 [serde / serde_json](https://crates.io/crates/serde)
 
 [tokio](https://crates.io/crates/tokio)
+
+---
+
+### To-do list
+
+- Fix structuring for "BLUE" / "S\*\*\*" bus cases (thanks WT...)
+- Group results per collection / stop
+- Constant output (without overloading my computer...)
+- Pretty-ify everything
