@@ -1,9 +1,8 @@
 extern crate dotenv;
 
-use chrono::{DateTime, Duration, FixedOffset, Local, format::Fixed};
+use chrono::{DateTime, Duration, Local};
 use dotenv::dotenv;
 use read_input::prelude::*;
-use relativetime::{NegativeRelativeTime, RelativeTime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, fmt, str::FromStr};
@@ -108,7 +107,7 @@ impl std::str::FromStr for StopCollection {
         let mut temp: Vec<BusStop> = Vec::new();
 
         let busses: Vec<BusStop> = match s {
-            "university" => {
+            "university" | "uni" => {
                 temp.push(BusStop::from_str("stafford_south").unwrap());
                 temp.push(BusStop::from_str("waverly_south").unwrap());
 
@@ -182,6 +181,8 @@ impl std::str::FromStr for BusStop {
                     busses_wanted: [36, 78].to_vec(),
                 },
             }),
+            // doesn't work right now because this one randomly decides to return blue string (yay)
+            // need to restructure for blue
             "university_blue" => Ok(BusStop {
                 alias: s.to_string(),
                 stop_number: 60675,
@@ -252,7 +253,9 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
         param.insert("max-results-per-route", "3"); // seems to max out at 3
 
         let routes = &stops.busses_wanted.to_string();
-        param.insert("route", routes);
+        if routes.len() != 0 {
+            param.insert("route", routes);
+        }
 
         let url = format!(
             "https://api.winnipegtransit.com/v3/stops/{0}/schedule.json",
