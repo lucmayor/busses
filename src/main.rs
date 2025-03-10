@@ -1,6 +1,6 @@
 extern crate dotenv;
 
-use chrono::{DateTime, Duration, Local};
+use chrono::{DateTime, Duration, Local, Timelike};
 use dotenv::dotenv;
 use read_input::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -25,8 +25,12 @@ struct Bus {
 impl ToString for Bus {
     fn to_string(&self) -> String {
         let mut res = self.alias.clone() + ": ";
-        for time in &self.times {
-            res = res + "\n" + &time.to_string();
+        if self.times.len() != 0 {
+            for time in &self.times {
+                res = res + "\n" + &time.to_string();
+            }
+        } else {
+            res = res + "\nn/a";
         }
         res
     }
@@ -34,8 +38,6 @@ impl ToString for Bus {
 
 #[derive(Debug, Deserialize)]
 struct Times {
-    // scheduled: chrono::DateTime<Local>,
-    // estimated: chrono::DateTime<Local>,
     scheduled: String,
     estimated: String,
 }
@@ -44,31 +46,28 @@ impl ToString for Times {
     fn to_string(&self) -> String {
         let current = Local::now();
 
-        let test_a = match format!("{}-05:00", self.scheduled).parse::<DateTime<Local>>() {
+        let schedule = match format!("{}-05:00", self.scheduled).parse::<DateTime<Local>>() {
             Ok(res) => res,
-            Err(e) => panic!("error msg: {}", e),
+            Err(e) => panic!("parse error msg: {}", e),
         };
-        let test_b = match format!("{}-05:00", self.estimated).parse::<DateTime<Local>>() {
+        let estimate = match format!("{}-05:00", self.estimated).parse::<DateTime<Local>>() {
             Ok(res) => res,
-            Err(e) => panic!("error msg: {}", e),
+            Err(e) => panic!("parse error msg: {}", e),
         };
 
-        let sched_corrected: Duration = test_a - current;
-        let estim_corrected: Duration = test_b - current;
+        let sched_corrected: Duration = schedule - current;
+        let estim_corrected: Duration = estimate - current;
 
-        let output = match estim_corrected.num_minutes() {
-            0 => format!(
-                "{0} second(s) ({1} minute(s) scheduled)",
-                estim_corrected.num_seconds(),
-                sched_corrected.num_seconds()
-            ),
-            _ => format!(
-                "{0} minute(s) ({1} minute(s) scheduled)",
-                estim_corrected.num_minutes(),
-                sched_corrected.num_minutes()
-            ),
-        };
-        output
+        format!(
+            "in {0} ({1} minute(s) scheduled— {2}:{3})",
+            match estim_corrected.num_minutes() {
+                0 => format!("{} second(s)", estim_corrected.num_seconds(),),
+                _ => format!("{} minute(s)", estim_corrected.num_minutes(),),
+            },
+            sched_corrected.num_minutes(),
+            schedule.hour(),
+            schedule.minute()
+        )
     }
 }
 
@@ -279,6 +278,10 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         let mut final_list: Vec<Bus> = Vec::new();
+
+        if routes.len() == 0 {
+            println!("No busses found.");
+        }
 
         for route in routes {
             let name = match route.get("route").and_then(|k| k.get("key")) {
