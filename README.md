@@ -19,13 +19,11 @@ To do so, simply add a case to our BusStop FromStr method. These can be visualiz
 
 Input is prompted at runtime through command line, and should match a case seen alike in the "example" key.
 
-This will also require your own provided `.env`, which requires storage of the WT API key. Format as seen below:
+This will also require a WT API key, which should be stored within your `.env`. Format as seen below:
 
 ```
     api_key = "YOUR_API_KEY"
 ```
-
-(it's not that long .. i should also just upload a structure example file but . Later)
 
 ---
 
@@ -34,7 +32,7 @@ This will also require your own provided `.env`, which requires storage of the W
 Example output for input `uni`
 
 ```
-uni
+> uni
 For collection "uni"     
 
 For stop "stafford_south"
