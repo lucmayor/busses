@@ -297,7 +297,7 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
 
                 for stop in stops {
                     if let Some(stop_time) = stop.get("times") {
-                        if let Some(arrival_key) = stop_time.get("arrival") {
+                        if let Some(arrival_key) = stop_time.get("departure") {
                             if let Ok(times) = serde_json::from_value(arrival_key.clone()) {
                                 result.push(times);
                             }
