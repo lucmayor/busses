@@ -79,7 +79,26 @@ struct BusStop {
 }
 
 struct BusList {
-    busses_wanted: Vec<u8>,
+    busses_wanted: Vec<BusType>,
+}
+
+#[derive(Clone)]
+enum BusType {
+    Integer(u8),
+    String(String)
+}
+
+impl ToString for BusType {
+    fn to_string(&self) -> String {
+        if let BusType::Integer(val) = self {
+            let temp = val.to_string();
+            temp 
+        } else if let BusType::String(val) = self {
+            val.clone()
+        } else {
+            panic!("unable to convert")
+        }
+    }
 }
 
 impl ToString for BusList {
@@ -142,58 +161,56 @@ impl std::str::FromStr for BusStop {
                 alias: s.to_string(),
                 stop_number: 10102,
                 busses_wanted: BusList {
-                    busses_wanted: [36].to_vec(),
+                    busses_wanted: [BusType::Integer(36)].to_vec(),
                 },
             }),
             "corydon_east" => Ok(BusStop {
                 alias: s.to_string(),
                 stop_number: 60316,
                 busses_wanted: BusList {
-                    busses_wanted: [18].to_vec(),
+                    busses_wanted: [BusType::Integer(18)].to_vec(),
                 },
             }),
             "waverly_south" => Ok(BusStop {
                 alias: s.to_string(),
                 stop_number: 60306,
                 busses_wanted: BusList {
-                    busses_wanted: [78].to_vec(),
+                    busses_wanted: [BusType::Integer(78)].to_vec(),
                 },
             }),
             "university_one" => Ok(BusStop {
                 alias: s.to_string(),
                 stop_number: 60674,
                 busses_wanted: BusList {
-                    busses_wanted: [36].to_vec(),
+                    busses_wanted: [BusType::Integer(36)].to_vec(),
                 },
             }),
             "university_two" => Ok(BusStop {
                 alias: s.to_string(),
                 stop_number: 60673,
                 busses_wanted: BusList {
-                    busses_wanted: [78].to_vec(),
+                    busses_wanted: [BusType::Integer(78)].to_vec(),
                 },
             }),
             "agriculture_stop" => Ok(BusStop {
                 alias: s.to_string(),
                 stop_number: 60105,
                 busses_wanted: BusList {
-                    busses_wanted: [36, 78].to_vec(),
+                    busses_wanted: [BusType::Integer(36), BusType::Integer(78), BusType::String("BLUE".to_owned())].to_vec(),
                 },
             }),
-            // doesn't work right now because this one randomly decides to return blue string (yay)
-            // need to restructure for blue
             "university_blue" => Ok(BusStop {
                 alias: s.to_string(),
                 stop_number: 60675,
                 busses_wanted: BusList {
-                    busses_wanted: [0].to_vec(),
+                    busses_wanted: [BusType::String("BLUE".to_owned())].to_vec(),
                 },
             }),
             "downtown_rwb_west" => Ok(BusStop {
                 alias: s.to_string(),
                 stop_number: 10617,
                 busses_wanted: BusList {
-                    busses_wanted: [18].to_vec(),
+                    busses_wanted: [BusType::Integer(18)].to_vec(),
                 },
             }),
             _ => Err(LocError::Other),
@@ -216,26 +233,39 @@ async fn main() {
     match validate().await {
         Ok(stat) => match stat.status.get("value").unwrap().as_str() {
             "esp-1" | "esp-2" | "esp-3" => panic!("Presently not in service"),
-            // THIS IS UNSAFE AS FUCK !!!
-            // THIS IS UNSAFE AS FUCK !!!
-            // THIS IS UNSAFE AS FUCK !!!
-            // THIS IS UNSAFE AS FUCK !!!
-
-            // This will crash your computer in like 30 seconds don't use this !!!
-            // _ => loop {}
             _ => {
-                tokio::task::spawn_blocking(move || get_results().unwrap());
+                tokio::task::spawn_blocking(move || results_loop());
             }
         },
         Err(e) => panic!("Error in first read-in: {:?}", e),
     }
 }
 
-fn get_results() -> Result<(), Box<dyn std::error::Error>> {
+// main loop, spawn off async so we don't create concurrent threads
+fn results_loop() {
+    loop {
+        let res = get_results().unwrap();
+        match res {
+            'q' => {
+                println!("Quitting program.");
+                break;
+            },
+            'c' => {},
+            _ => panic!("idk what just happened")
+        }
+    }
+}
+
+fn get_results() -> Result<char, Box<dyn std::error::Error>> {
     dotenv().ok();
     let blocking_client = reqwest::blocking::Client::new();
 
     let input: String = input().get();
+
+    if input == "q" {
+        return Ok('q');
+    }
+
     let to_search = match StopCollection::from_str(&input) {
         Ok(stops) => stops,
         Err(_e) => panic!("Couldn't build stops"),
@@ -316,7 +346,7 @@ fn get_results() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    Ok(())
+    Ok('c')
 }
 
 async fn validate() -> Result<Status, reqwest::Error> {

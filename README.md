@@ -65,7 +65,14 @@ in 35 minute(s) (35 minute(s) scheduled — 15:58)
 
 ### To-do list
 
-- Fix structuring for "BLUE" / "S\*\*\*" bus cases (thanks WT...)
 - Group results per collection / stop
-- Constant output (without overloading my computer...)
 - Pretty-ify everything
+
+---
+
+### Changelog
+
+**2025-03-12**
+- Restructure for "BLUE" / "S\*\*\*" bus cases (thanks WT...)
+- Fix inconsistent return from some example bus types
+- Constant output (without overloading my computer...)
