@@ -36,27 +36,18 @@ impl ToString for Bus {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone, PartialEq, PartialOrd, Copy)]
 struct Times {
-    scheduled: String,
-    estimated: String,
+    scheduled: DateTime<Local>,
+    estimated: DateTime<Local>,
 }
 
 impl ToString for Times {
     fn to_string(&self) -> String {
         let current = Local::now();
-
-        let schedule = match format!("{}-05:00", self.scheduled).parse::<DateTime<Local>>() {
-            Ok(res) => res,
-            Err(e) => panic!("parse error msg: {}", e),
-        };
-        let estimate = match format!("{}-05:00", self.estimated).parse::<DateTime<Local>>() {
-            Ok(res) => res,
-            Err(e) => panic!("parse error msg: {}", e),
-        };
-
-        let sched_corrected: Duration = schedule - current;
-        let estim_corrected: Duration = estimate - current;
+        
+        let sched_corrected: Duration = self.scheduled - current;
+        let estim_corrected: Duration = self.estimated - current;
 
         format!(
             "in {0} ({1} minute(s) scheduled — {2}:{3:02})",
@@ -65,8 +56,8 @@ impl ToString for Times {
                 _ => format!("{} minute(s)", estim_corrected.num_minutes(),),
             },
             sched_corrected.num_minutes(),
-            schedule.hour(),
-            schedule.minute()
+            self.scheduled.hour(),
+            self.estimated.minute()
         )
     }
 }
@@ -85,14 +76,14 @@ struct BusList {
 #[derive(Clone)]
 enum BusType {
     Integer(u8),
-    String(String)
+    String(String),
 }
 
 impl ToString for BusType {
     fn to_string(&self) -> String {
         if let BusType::Integer(val) = self {
             let temp = val.to_string();
-            temp 
+            temp
         } else if let BusType::String(val) = self {
             val.clone()
         } else {
@@ -196,7 +187,12 @@ impl std::str::FromStr for BusStop {
                 alias: s.to_string(),
                 stop_number: 60105,
                 busses_wanted: BusList {
-                    busses_wanted: [BusType::Integer(36), BusType::Integer(78), BusType::String("BLUE".to_owned())].to_vec(),
+                    busses_wanted: [
+                        BusType::Integer(36),
+                        BusType::Integer(78),
+                        BusType::String("BLUE".to_owned()),
+                    ]
+                    .to_vec(),
                 },
             }),
             "university_blue" => Ok(BusStop {
@@ -249,9 +245,9 @@ fn results_loop() {
             'q' => {
                 println!("Quitting program.");
                 break;
-            },
-            'c' => {},
-            _ => panic!("idk what just happened")
+            }
+            'c' => {}
+            _ => panic!("idk what just happened"),
         }
     }
 }
@@ -328,10 +324,13 @@ fn get_results() -> Result<char, Box<dyn std::error::Error>> {
                 for stop in stops {
                     if let Some(stop_time) = stop.get("times") {
                         if let Some(arrival_key) = stop_time.get("departure") {
-                            if let Ok(times) = serde_json::from_value(arrival_key.clone()) {
-                                result.push(times);
+                            if let Value::String(mut str) = arrival_key.clone() {
+                                str.push_str("-05:00");
+                                if let Ok(times) = serde_json::from_value(serde_json::Value::String(str)) {
+                                    result.push(times);
+                                }
                             }
-                        }
+                            }
                     }
                 }
                 final_list.push(Bus {
@@ -365,4 +364,50 @@ async fn validate() -> Result<Status, reqwest::Error> {
         .await?
         .json::<Status>()
         .await
+}
+
+fn group_busses(bus_list: Vec<Bus>) -> Vec<(String, Times)> {
+    let mut out_list: Vec<(String, Times)> = Vec::new();
+
+    let mut finished: bool = false;
+    while !finished {
+        let mut chosen_bus: Option<&Bus> = None;
+        let mut chosen_times: Option<Times> = None;
+
+        // empty iter
+        for bus in &bus_list {
+            if !bus.times.is_empty() {
+                // get first time available
+                let curr_bus_time: Times = bus
+                    .times
+                    .get(0)
+                    .expect("Failed to grab from bus from vector")
+                    .clone();
+
+                // test bus
+                match chosen_times.clone() {
+                    Some(x) => {
+                        if curr_bus_time < x {
+                            chosen_bus = Some(bus);
+                            chosen_times = Some(curr_bus_time);
+                        }
+                    },
+                    None => {
+                        chosen_bus = Some(bus);
+                        chosen_times = Some(curr_bus_time);
+                    }
+                }
+            }
+        }
+        match chosen_bus {
+            Some(_) => {
+                out_list.push((chosen_bus.unwrap().alias.clone(), chosen_times.unwrap()));
+            },
+            None => {
+                finished = true;
+            }
+        }
+    }
+
+    out_list
 }
