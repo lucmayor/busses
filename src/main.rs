@@ -37,26 +37,33 @@ impl ToString for Bus {
 }
 
 #[derive(Debug, Deserialize)]
-struct Times {
+struct TimesTemp {
     scheduled: String,
     estimated: String,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Copy, Ord, Eq)]
+struct Times {
+    scheduled: DateTime<Local>,
+    estimated: DateTime<Local>,
+}
+
+impl PartialOrd for Times {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.scheduled.partial_cmp(&other.scheduled) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.estimated.partial_cmp(&other.estimated)
+    }
 }
 
 impl ToString for Times {
     fn to_string(&self) -> String {
         let current = Local::now();
 
-        let schedule = match format!("{}-05:00", self.scheduled).parse::<DateTime<Local>>() {
-            Ok(res) => res,
-            Err(e) => panic!("parse error msg: {}", e),
-        };
-        let estimate = match format!("{}-05:00", self.estimated).parse::<DateTime<Local>>() {
-            Ok(res) => res,
-            Err(e) => panic!("parse error msg: {}", e),
-        };
-
-        let sched_corrected: Duration = schedule - current;
-        let estim_corrected: Duration = estimate - current;
+        let sched_corrected: Duration = self.scheduled - current;
+        let estim_corrected: Duration = self.estimated - current;
 
         format!(
             "in {0} ({1} minute(s) scheduled — {2}:{3:02})",
@@ -65,8 +72,8 @@ impl ToString for Times {
                 _ => format!("{} minute(s)", estim_corrected.num_minutes(),),
             },
             sched_corrected.num_minutes(),
-            schedule.hour(),
-            schedule.minute()
+            self.scheduled.hour(),
+            self.estimated.minute()
         )
     }
 }
@@ -85,14 +92,14 @@ struct BusList {
 #[derive(Clone)]
 enum BusType {
     Integer(u8),
-    String(String)
+    String(String),
 }
 
 impl ToString for BusType {
     fn to_string(&self) -> String {
         if let BusType::Integer(val) = self {
             let temp = val.to_string();
-            temp 
+            temp
         } else if let BusType::String(val) = self {
             val.clone()
         } else {
@@ -139,6 +146,16 @@ impl std::str::FromStr for StopCollection {
             }
             "home_bus" => {
                 temp.push(BusStop::from_str("university_one").unwrap());
+
+                temp
+            }
+            "ryan" => {
+                temp.push(BusStop::from_str("university_blue").unwrap());
+
+                temp
+            }
+            "late" => {
+                temp.push(BusStop::from_str("agriculture_stop").unwrap());
 
                 temp
             }
@@ -196,7 +213,12 @@ impl std::str::FromStr for BusStop {
                 alias: s.to_string(),
                 stop_number: 60105,
                 busses_wanted: BusList {
-                    busses_wanted: [BusType::Integer(36), BusType::Integer(78), BusType::String("BLUE".to_owned())].to_vec(),
+                    busses_wanted: [
+                        BusType::Integer(36),
+                        BusType::Integer(78),
+                        BusType::String("BLUE".to_owned()),
+                    ]
+                    .to_vec(),
                 },
             }),
             "university_blue" => Ok(BusStop {
@@ -249,9 +271,9 @@ fn results_loop() {
             'q' => {
                 println!("Quitting program.");
                 break;
-            },
-            'c' => {},
-            _ => panic!("idk what just happened")
+            }
+            'c' => {}
+            _ => panic!("idk what just happened"),
         }
     }
 }
@@ -273,9 +295,9 @@ fn get_results() -> Result<char, Box<dyn std::error::Error>> {
 
     println!("For collection {:?}", to_search.alias);
 
-    for stops in to_search.stops {
-        println!("\nFor stop {:?}", stops.alias);
+    let mut final_list: Vec<Bus> = Vec::new();
 
+    for stops in to_search.stops {
         let mut param: HashMap<&str, &str> = HashMap::new();
         let api_key = &std::env::var("api_key").expect("api key of doom");
         param.insert("api-key", api_key);
@@ -307,18 +329,21 @@ fn get_results() -> Result<char, Box<dyn std::error::Error>> {
             None => &vec![],
         };
 
-        let mut final_list: Vec<Bus> = Vec::new();
-
         if routes.len() == 0 {
-            println!("No busses found.");
+            println!("No busses found on route \'{0}\'.", stops.alias);
         }
 
         for route in routes {
             let name = match route.get("route").and_then(|k| k.get("key")) {
-                Some(n) => match n.as_i64() {
-                    Some(bus) => &bus.to_string(),
-                    None => "n/a",
-                },
+                Some(n) => {
+                    if let Some(as_num) = n.as_i64() {
+                        &*as_num.to_string()
+                    } else if let Some(as_str) = n.as_str() {
+                        as_str
+                    } else {
+                        "n/a"
+                    }
+                }
                 None => "n/a",
             };
 
@@ -328,8 +353,24 @@ fn get_results() -> Result<char, Box<dyn std::error::Error>> {
                 for stop in stops {
                     if let Some(stop_time) = stop.get("times") {
                         if let Some(arrival_key) = stop_time.get("departure") {
-                            if let Ok(times) = serde_json::from_value(arrival_key.clone()) {
-                                result.push(times);
+                            // this is kinda shit and we can probably find a way to manipulate the string
+                            // without the interim struct / handler
+                            if let Ok(mut interim) =
+                                serde_json::from_value::<TimesTemp>(arrival_key.clone())
+                            {
+                                interim.estimated.push_str("-05:00");
+                                interim.scheduled.push_str("-05:00");
+                                let updated_times: Times = Times {
+                                    estimated: interim
+                                        .estimated
+                                        .parse::<DateTime<Local>>()
+                                        .unwrap(),
+                                    scheduled: interim
+                                        .scheduled
+                                        .parse::<DateTime<Local>>()
+                                        .unwrap(),
+                                };
+                                result.push(updated_times);
                             }
                         }
                     }
@@ -340,10 +381,11 @@ fn get_results() -> Result<char, Box<dyn std::error::Error>> {
                 })
             }
         }
+    }
 
-        for res_bus in final_list {
-            println!("{}", res_bus.to_string());
-        }
+    let bus: Vec<(String, Times)> = group_busses(final_list);
+    for item in bus {
+        println!("{0}: {1}", item.0, item.1.to_string());
     }
 
     Ok('c')
@@ -365,4 +407,20 @@ async fn validate() -> Result<Status, reqwest::Error> {
         .await?
         .json::<Status>()
         .await
+}
+
+fn group_busses(bus_list: Vec<Bus>) -> Vec<(String, Times)> {
+    // need to clone list
+    // need to remove from list
+    // need to do a little bit more fuckshit
+    let mut out_list: Vec<(String, Times)> = Vec::new();
+
+    for item in bus_list {
+        for times in item.times {
+            out_list.push((item.alias.clone(), times))
+        }
+    }
+
+    out_list.sort_by_key(|k| k.1);
+    out_list
 }
