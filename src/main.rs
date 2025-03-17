@@ -50,11 +50,11 @@ struct Times {
 
 impl PartialOrd for Times {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.scheduled.partial_cmp(&other.scheduled) {
+        match self.estimated.partial_cmp(&other.estimated) {
             Some(core::cmp::Ordering::Equal) => {}
             ord => return ord,
         }
-        self.estimated.partial_cmp(&other.estimated)
+        self.scheduled.partial_cmp(&other.scheduled)
     }
 }
 
@@ -159,7 +159,7 @@ impl std::str::FromStr for StopCollection {
 
                 temp
             }
-            _ => todo!(),
+            _ => panic!("Unimplemented bus case")
         };
 
         Ok(StopCollection {
@@ -410,9 +410,6 @@ async fn validate() -> Result<Status, reqwest::Error> {
 }
 
 fn group_busses(bus_list: Vec<Bus>) -> Vec<(String, Times)> {
-    // need to clone list
-    // need to remove from list
-    // need to do a little bit more fuckshit
     let mut out_list: Vec<(String, Times)> = Vec::new();
 
     for item in bus_list {
